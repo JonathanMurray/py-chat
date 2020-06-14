@@ -7,11 +7,17 @@ def u8_to_bytes(unsigned_8bit_int: int) -> bytes:
   return int.to_bytes(unsigned_8bit_int, 1, 'big', signed=False)
 
 
+def bool_to_bytes(b: bool) -> bytes:
+  return bool.to_bytes(b, 1, 'big', signed=False)
+
+
 class PacketType(Enum):
   PING = 1
   SUBMIT_MESSAGE = 2
   USER_WROTE_MESSAGE = 3
   USER_STATUS_WAS_UPDATED = 4
+  LOGIN = 5
+  LOGIN_RESPONSE = 6
 
   def __bytes__(self) -> bytes:
     return u8_to_bytes(self.value)
@@ -50,9 +56,8 @@ class SubmitMessage(Packet):
     return f"{super().__repr__()}('{payload}')"
 
   def __bytes__(self) -> bytes:
-    payload_size = len(self.payload)
     return super().__bytes__() \
-           + u8_to_bytes(payload_size) \
+           + u8_to_bytes(len(self.payload)) \
            + self.payload
 
   @staticmethod
@@ -78,10 +83,9 @@ class UserWroteMessage(Packet):
     return f"{super().__repr__()}({self.user_id}: '{message}')"
 
   def __bytes__(self) -> bytes:
-    message_size = len(self.message)
     return super().__bytes__() \
            + u8_to_bytes(self.user_id) \
-           + u8_to_bytes(message_size) \
+           + u8_to_bytes(len(self.message)) \
            + self.message
 
   @staticmethod
@@ -96,8 +100,8 @@ class UserWroteMessage(Packet):
 
 
 class UserStatus(Enum):
-  CONNECTED = 1
-  DISCONNECTED = 2
+  LOGGED_IN = 1
+  LOGGED_OUT = 2
 
   def __bytes__(self) -> bytes:
     return u8_to_bytes(self.value)
@@ -126,6 +130,55 @@ class UserStatusWasUpdated(Packet):
       return UserStatusWasUpdated(user_id, status)
 
 
+class Login(Packet):
+  def __init__(self, user_name: Optional[str]):
+    super().__init__(PacketType.LOGIN)
+    self.user_name = user_name if user_name else ""
+
+  def __repr__(self):
+    return f"{super().__repr__()}({self.user_name})"
+
+  def __bytes__(self):
+    return super().__bytes__() \
+           + u8_to_bytes(len(self.user_name)) \
+           + self.user_name.encode("utf8")
+
+  @staticmethod
+  def extract_from(buffer: bytearray) -> Optional[Packet]:
+    if len(buffer) >= 2:
+      name_length = buffer[1]
+      if len(buffer) >= 2 + name_length:
+        name = buffer[2:2 + name_length].decode("utf8")
+        buffer[:] = buffer[2 + name_length:]
+        return Login(name)
+
+
+class LoginResponse(Packet):
+  def __init__(self, success: bool, message: str):
+    super().__init__(PacketType.LOGIN_RESPONSE)
+    self.success = success
+    self.message = message
+
+  def __repr__(self):
+    return f"{super().__repr__()}(success={self.success}, message={self.message})"
+
+  def __bytes__(self):
+    return super().__bytes__() \
+           + bool_to_bytes(self.success) \
+           + u8_to_bytes(len(self.message)) \
+           + self.message.encode("utf8")
+
+  @staticmethod
+  def extract_from(buffer: bytearray) -> Optional[Packet]:
+    if len(buffer) >= 3:
+      success = bool(buffer[1])
+      message_length = buffer[2]
+      if len(buffer) >= 3 + message_length:
+        message = buffer[3: 3 + message_length].decode("utf8")
+        buffer[:] = buffer[3 + message_length:]
+        return LoginResponse(success, message)
+
+
 # TODO implement pinging (client sends ping to server, it responds, client notes the latency)
 
 
@@ -138,6 +191,8 @@ def extract_packet_from(buffer: bytearray) -> Optional[Packet]:
         PacketType.SUBMIT_MESSAGE: SubmitMessage,
         PacketType.USER_WROTE_MESSAGE: UserWroteMessage,
         PacketType.USER_STATUS_WAS_UPDATED: UserStatusWasUpdated,
+        PacketType.LOGIN: Login,
+        PacketType.LOGIN_RESPONSE: LoginResponse
       }[packet_type]
       return packet_class.extract_from(buffer)
   except IndexError as e:

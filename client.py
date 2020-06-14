@@ -1,15 +1,17 @@
 import threading
 from socket import SHUT_RDWR
-from typing import Iterable, Callable
+from typing import Iterable, Callable, Optional
 
-from protocol import PacketSender, PacketReceiver, Packet
+from protocol import PacketSender, PacketReceiver, Packet, Login, LoginResponse
 
 
 class Client:
-  def __init__(self, sock, packet_handler: Callable[[Packet], None]):
+  def __init__(self, sock, user_name: Optional[str], packet_handler: Callable[[Packet], None]):
     self._socket = sock
+    self._user_name = user_name
     self._packet_handler = packet_handler
     self._sender = PacketSender(self._socket)
+    self._receiver = PacketReceiver(self._socket)
     self._connected = True
 
   @property
@@ -17,6 +19,16 @@ class Client:
     return self._connected
 
   def __enter__(self):
+    print("Logging in...")
+    login = Login(self._user_name)
+    self._sender.send_packets([login])
+    login_response = self._receiver.wait_for_packet()
+    if not isinstance(login_response, LoginResponse):
+      raise Exception(f"Unexpected login response from server: {login_response}")
+    if not login_response.success:
+      raise Exception(f"Failed to log in! ({login_response.message})")
+    self._user_name = login_response.message
+    print(f"Logged in as '{login_response.message}'")
     self._start_receiver_thread()
     return self
 
@@ -30,9 +42,8 @@ class Client:
     receiver_thread.start()
 
   def _receive_packets(self):
-    receiver = PacketReceiver(self._socket)
     while self._connected:
-      packet = receiver.wait_for_packet()
+      packet = self._receiver.wait_for_packet()
       if not packet:
         print("Received end-of-stream from server. Will disconnect.")
         self.close()

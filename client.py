@@ -21,6 +21,11 @@ class Client:
     return self._connected
 
   def __enter__(self):
+    self.log_in_to_server()
+    self.start_receiver_thread()
+    return self
+
+  def log_in_to_server(self) -> str:
     print("Logging in...")
     login = Login(self._user_name)
     self._sender.send_packets([login])
@@ -30,16 +35,15 @@ class Client:
     if not login_response.success:
       raise Exception(f"Failed to log in! ({login_response.message})")
     self._user_name = login_response.message
-    print(f"Logged in as '{login_response.message}'")
-    self._start_receiver_thread()
-    return self
+    print(f"Logged in as '{self._user_name}'")
+    return self._user_name
 
   def __exit__(self, exc_type, exc_val, exc_tb):
     details = f" ({exc_type.__name__}: {exc_val})" if exc_type else ""
     print(f"Closing client{details}")
     self.close()
 
-  def _start_receiver_thread(self):
+  def start_receiver_thread(self):
     receiver_thread = threading.Thread(target=self._receive_packets)
     receiver_thread.start()
 

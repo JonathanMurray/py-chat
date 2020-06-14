@@ -8,6 +8,12 @@ def u8_to_bytes(unsigned_8bit_int: int) -> bytes:
   return int.to_bytes(unsigned_8bit_int, 1, 'big', signed=False)
 
 
+@dataclass
+class OpaquePacket:
+  packet_type: int
+  payload: bytearray
+
+
 class Packet(metaclass=ABCMeta):
   def __init__(self, packet_type: int):
     self.packet_type = packet_type
@@ -23,21 +29,15 @@ class Packet(metaclass=ABCMeta):
   def encode_payload(self) -> bytes:
     pass
 
-
-@dataclass
-class OpaquePacket:
-  packet_type: int
-  payload: bytearray
-
-
-def extract_packet_from(buffer: bytearray) -> Optional[OpaquePacket]:
-  if buffer:
-    payload_length = buffer[0]  # packet consists of [ LENGTH | TYPE | PAYLOAD ]
-    if len(buffer) >= 2 + payload_length:
-      packet_type = buffer[1]
-      payload = buffer[2: 2 + payload_length]
-      buffer[:] = buffer[2 + payload_length:]
-      return OpaquePacket(packet_type, payload)
+  @staticmethod
+  def extract_from(buffer: bytearray) -> Optional[OpaquePacket]:
+    if buffer:
+      payload_length = buffer[0]  # packet consists of [ LENGTH | TYPE | PAYLOAD ]
+      if len(buffer) >= 2 + payload_length:
+        packet_type = buffer[1]
+        payload = buffer[2: 2 + payload_length]
+        buffer[:] = buffer[2 + payload_length:]
+        return OpaquePacket(packet_type, payload)
 
 
 class PacketSender:
@@ -73,7 +73,7 @@ class PacketReceiver:
 
   def wait_for_packet(self) -> Optional[Packet]:
     while True:
-      packet = extract_packet_from(self._buffer)
+      packet = Packet.extract_from(self._buffer)
       if packet:
         return self._packet_parser(packet)
 

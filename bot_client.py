@@ -3,7 +3,7 @@ import random
 from socket import socket, AF_INET, SOCK_STREAM
 from time import sleep
 
-from chat_protocol import Ping, SubmitMessage
+from chat_protocol import SubmitMessage
 from client import Client
 
 
@@ -17,7 +17,7 @@ def run_bot(server_port: int):
         message = random.choice(messages)
         print(f"Sending message: {message}")
         chat_message = SubmitMessage(message)
-        client.send_packets([Ping(), chat_message, Ping()])
+        client.send_packets([chat_message])
         sleep(random.randint(5, 10))
       print("Exiting.")
 

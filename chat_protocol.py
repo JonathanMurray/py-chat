@@ -52,25 +52,27 @@ class SubmitMessage(Packet):
 
 
 class UserWroteMessage(Packet):
-  def __init__(self, user_id: int, message: str):
+  def __init__(self, user_name: str, message: str):
     if len(message) > 255:
       raise Exception("Payload must not be larger than 255 bytes!")
     super().__init__(PacketType.USER_WROTE_MESSAGE.value)
-    self.user_id = user_id
+    self.user_name = user_name
     self.message = message
 
   def __repr__(self):
-    return f"{super().__repr__()}({self.user_id}: '{self.message}')"
+    return f"{super().__repr__()}({self.user_name}: '{self.message}')"
 
   def encode_payload(self) -> bytes:
-    return u8_to_bytes(self.user_id) \
+    return u8_to_bytes(len(self.user_name)) \
+           + self.user_name.encode("utf8") \
            + self.message.encode("utf8")
 
   @staticmethod
   def decode_payload(payload: bytearray) -> Optional[Packet]:
-    user_id = payload[0]
-    message = payload[1:].decode("utf8")
-    return UserWroteMessage(user_id, message)
+    user_name_length = payload[0]
+    user_name = payload[1:1 + user_name_length].decode("utf8")
+    message = payload[1 + user_name_length:].decode("utf8")
+    return UserWroteMessage(user_name, message)
 
 
 class UserStatus(Enum):
@@ -82,23 +84,23 @@ class UserStatus(Enum):
 
 
 class UserStatusWasUpdated(Packet):
-  def __init__(self, user_id: int, status: UserStatus):
+  def __init__(self, user_name: str, status: UserStatus):
     super().__init__(PacketType.USER_STATUS_WAS_UPDATED.value)
-    self.user_id = user_id
+    self.user_name = user_name
     self.status = status
 
   def __repr__(self):
-    return f"{super().__repr__()}({self.user_id} - {self.status})"
+    return f"{super().__repr__()}({self.user_name} - {self.status})"
 
   def encode_payload(self) -> bytes:
-    return u8_to_bytes(self.user_id) \
-           + bytes(self.status)
+    return bytes(self.status) \
+           + self.user_name.encode("utf8")
 
   @staticmethod
   def decode_payload(payload: bytearray) -> Optional[Packet]:
-    user_id = payload[0]
-    status = UserStatus(payload[1])
-    return UserStatusWasUpdated(user_id, status)
+    status = UserStatus(payload[0])
+    user_name = payload[1:].decode("utf8")
+    return UserStatusWasUpdated(user_name, status)
 
 
 class Login(Packet):
@@ -142,9 +144,11 @@ def parse_packet(opaque_packet: OpaquePacket) -> Optional[Packet]:
   # noinspection PyBroadException
   try:
     packet_classes_by_type = {
-      PacketType.PING: Ping, PacketType.SUBMIT_MESSAGE: SubmitMessage,
+      PacketType.PING: Ping,
+      PacketType.SUBMIT_MESSAGE: SubmitMessage,
       PacketType.USER_WROTE_MESSAGE: UserWroteMessage,
-      PacketType.USER_STATUS_WAS_UPDATED: UserStatusWasUpdated, PacketType.LOGIN: Login,
+      PacketType.USER_STATUS_WAS_UPDATED: UserStatusWasUpdated,
+      PacketType.LOGIN: Login,
       PacketType.LOGIN_RESPONSE: LoginResponse
     }
     packet_class = packet_classes_by_type[PacketType(opaque_packet.packet_type)]

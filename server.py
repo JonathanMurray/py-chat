@@ -68,6 +68,10 @@ class ClientHandles:
     with self._lock:
       return self._clients_by_id[client_id].logged_in
 
+  def get_client_name(self, client_id: int) -> str:
+    with self._lock:
+      return self._clients_by_id[client_id].name
+
   def remove_client(self, client_id: int):
     with self._lock:
       del self._clients_by_id[client_id]
@@ -122,13 +126,14 @@ class Server:
         self._disconnect_client(client_id, client_socket)
         return True
       print(f"[{client_id}] Broadcasting response to clients...")
-      self._clients.broadcast_to_logged_in(UserWroteMessage(client_id, packet.message))
+      user_name = self._clients.get_client_name(client_id)
+      self._clients.broadcast_to_logged_in(UserWroteMessage(user_name, packet.message))
       print(f"[{client_id}] Broadcast complete.")
     elif isinstance(packet, Login):
       claimed_name = self._clients.try_claim_name_for_client(client_id, packet.user_name)
       if claimed_name:
         self._clients.send_to_client(client_id, LoginResponse(True, claimed_name))
-        self._clients.broadcast_to_logged_in(UserStatusWasUpdated(client_id, UserStatus.LOGGED_IN))
+        self._clients.broadcast_to_logged_in(UserStatusWasUpdated(claimed_name, UserStatus.LOGGED_IN))
         self._clients.mark_client_as_logged_in(client_id)
       else:
         self._clients.send_to_client(client_id, LoginResponse(False, "Name taken."))
@@ -137,14 +142,14 @@ class Server:
     try:
       client_socket.shutdown(SHUT_RDWR)
     except OSError:
-      print(
-          f"[{client_id}] Couldn't shutdown client socket (because it was already shutdown from client's side likely)")
+      pass  # it may be shutdown already
     client_socket.close()
     was_logged_in = self._clients.is_client_logged_in(client_id)
+    user_name = self._clients.get_client_name(client_id)
     self._clients.remove_client(client_id)
     print(f"[{client_id}] Disconnected client {client_id}")
     if was_logged_in:
-      self._clients.broadcast_to_logged_in(UserStatusWasUpdated(client_id, UserStatus.LOGGED_OUT))
+      self._clients.broadcast_to_logged_in(UserStatusWasUpdated(user_name, UserStatus.LOGGED_OUT))
 
 
 if __name__ == '__main__':

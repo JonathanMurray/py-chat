@@ -3,20 +3,20 @@ import sys
 from socket import socket, AF_INET, SOCK_STREAM
 from typing import Optional
 
-from chat_protocol import Ping, SubmitMessage, Packet, UserWroteMessage, UserStatusWasUpdated, UserStatus
+from chat_protocol import SubmitMessage, Packet, UserWroteMessage, UserStatusWasUpdated, UserStatus
 from client import Client
 
 
 def handle_packet(packet: Packet):
   if isinstance(packet, UserWroteMessage):
     p: UserWroteMessage = packet
-    print(f"{p.user_id}: {p.message}")
+    print(f"{p.user_name}: {p.message}")
   elif isinstance(packet, UserStatusWasUpdated):
     p: UserStatusWasUpdated = packet
     if p.status == UserStatus.LOGGED_IN:
-      print(f"NEW USER CONNECTED: {p.user_id}")
+      print(f"NEW USER CONNECTED: {p.user_name}")
     elif p.status == UserStatus.LOGGED_OUT:
-      print(f"USER {p.user_id} DISCONNECTED")
+      print(f"USER {p.user_name} DISCONNECTED")
 
 
 def run_client(server_port: int, user_name: Optional[str]):
@@ -28,7 +28,7 @@ def run_client(server_port: int, user_name: Optional[str]):
       while True:
         message = input("")
         chat_message = SubmitMessage(message)
-        client.send_packets([Ping(), chat_message, Ping()])
+        client.send_packets([chat_message])
 
 
 def main():

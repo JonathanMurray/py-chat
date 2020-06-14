@@ -1,16 +1,14 @@
-#!/usr/bin/env python3
-import random
 import threading
-from socket import socket, AF_INET, SOCK_STREAM, SHUT_RDWR
-from time import sleep
-from typing import Iterable
+from socket import SHUT_RDWR
+from typing import Iterable, Callable
 
-from protocol import Ping, SubmitMessage, PacketSender, PacketReceiver, Packet
+from protocol import PacketSender, PacketReceiver, Packet
 
 
 class Client:
-  def __init__(self, sock):
+  def __init__(self, sock, packet_handler: Callable[[Packet], None]):
     self._socket = sock
+    self._packet_handler = packet_handler
     self._sender = PacketSender(self._socket)
     self._connected = True
 
@@ -39,7 +37,7 @@ class Client:
         print("Received end-of-stream from server. Will disconnect.")
         self.close()
         break
-      print(f"Received from server: {packet}")
+      self._packet_handler(packet)
 
   def close(self):
     if self._connected:
@@ -55,22 +53,3 @@ class Client:
     if not self._connected:
       raise Exception("Cannot send packet. Client has disconnected!")
     self._sender.send_packets(packets)
-
-
-def run_client(remote_port):
-  messages = [b"Apple", b"Banana", b"Pineapple"]
-  with socket(AF_INET, SOCK_STREAM) as sock:
-    print(f"Connecting to server (remote_port: {remote_port})...")
-    sock.connect(("localhost", remote_port))
-    with Client(sock) as client:
-      while client.connected:
-        message = random.choice(messages)
-        print(f"Sending message: {message}")
-        chat_message = SubmitMessage(bytearray(message))
-        client.send_packets([Ping(), chat_message, Ping()])
-        sleep(random.randint(5, 10))
-      print("Exiting.")
-
-
-if __name__ == '__main__':
-  run_client(5100)

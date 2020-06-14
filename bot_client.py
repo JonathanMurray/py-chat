@@ -3,20 +3,20 @@ import random
 from socket import socket, AF_INET, SOCK_STREAM
 from time import sleep
 
+from chat_protocol import Ping, SubmitMessage
 from client import Client
-from protocol import Ping, SubmitMessage
 
 
 def run_bot(server_port: int):
-  messages = [b"Apple", b"Banana", b"Pineapple"]
+  messages = ["Apple", "Banana", "Pineapple"]
   with socket(AF_INET, SOCK_STREAM) as sock:
     print(f"Connecting to server (remote_port: {server_port})...")
     sock.connect(("localhost", server_port))
-    with Client(sock) as client:
+    with Client(sock, "BOT", lambda p: print(f"Received message: {p}")) as client:
       while client.connected:
         message = random.choice(messages)
         print(f"Sending message: {message}")
-        chat_message = SubmitMessage(bytearray(message))
+        chat_message = SubmitMessage(message)
         client.send_packets([Ping(), chat_message, Ping()])
         sleep(random.randint(5, 10))
       print("Exiting.")

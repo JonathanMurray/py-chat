@@ -3,14 +3,14 @@ import sys
 from socket import socket, AF_INET, SOCK_STREAM
 from typing import Optional
 
+from chat_protocol import Ping, SubmitMessage, Packet, UserWroteMessage, UserStatusWasUpdated, UserStatus
 from client import Client
-from protocol import Ping, SubmitMessage, Packet, UserWroteMessage, UserStatusWasUpdated, UserStatus
 
 
 def handle_packet(packet: Packet):
   if isinstance(packet, UserWroteMessage):
     p: UserWroteMessage = packet
-    print(f"{p.user_id}: {p.message.decode('utf8')}")
+    print(f"{p.user_id}: {p.message}")
   elif isinstance(packet, UserStatusWasUpdated):
     p: UserStatusWasUpdated = packet
     if p.status == UserStatus.LOGGED_IN:
@@ -27,7 +27,7 @@ def run_client(server_port: int, user_name: Optional[str]):
       print("WELCOME! TYPE AND CLICK RETURN TO SEND MESSAGES.")
       while True:
         message = input("")
-        chat_message = SubmitMessage(bytearray(message, "utf8"))
+        chat_message = SubmitMessage(message)
         client.send_packets([Ping(), chat_message, Ping()])
 
 

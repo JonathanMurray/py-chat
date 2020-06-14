@@ -2,7 +2,9 @@ import threading
 from socket import SHUT_RDWR
 from typing import Iterable, Callable, Optional
 
-from protocol import PacketSender, PacketReceiver, Packet, Login, LoginResponse
+import chat_protocol
+from chat_protocol import Packet, Login, LoginResponse
+from framed_protocol import PacketSender, PacketReceiver
 
 
 class Client:
@@ -11,7 +13,7 @@ class Client:
     self._user_name = user_name
     self._packet_handler = packet_handler
     self._sender = PacketSender(self._socket)
-    self._receiver = PacketReceiver(self._socket)
+    self._receiver = PacketReceiver(self._socket, chat_protocol.parse_packet)
     self._connected = True
 
   @property

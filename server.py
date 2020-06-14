@@ -4,8 +4,10 @@ from dataclasses import dataclass
 from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SHUT_RDWR
 from typing import Dict, Optional
 
-from protocol import SubmitMessage, PacketSender, PacketReceiver, UserWroteMessage, Packet, UserStatusWasUpdated, \
+import chat_protocol
+from chat_protocol import SubmitMessage, UserWroteMessage, Packet, UserStatusWasUpdated, \
   UserStatus, Login, LoginResponse
+from framed_protocol import PacketSender, PacketReceiver
 
 GENERIC_NAMES = ["Alice", "Bob", "Charlie"]
 
@@ -97,7 +99,7 @@ class Server:
         client_thread.start()
 
   def _communicate_with_client(self, client_id: int, client_socket):
-    receiver = PacketReceiver(client_socket)
+    receiver = PacketReceiver(client_socket, chat_protocol.parse_packet)
     try:
       should_continue = True
       while should_continue:
@@ -120,7 +122,7 @@ class Server:
         self._disconnect_client(client_id, client_socket)
         return True
       print(f"[{client_id}] Broadcasting response to clients...")
-      self._clients.broadcast_to_logged_in(UserWroteMessage(client_id, packet.payload))
+      self._clients.broadcast_to_logged_in(UserWroteMessage(client_id, packet.message))
       print(f"[{client_id}] Broadcast complete.")
     elif isinstance(packet, Login):
       claimed_name = self._clients.try_claim_name_for_client(client_id, packet.user_name)

@@ -6,7 +6,7 @@ from typing import Dict, Optional
 
 import chat_protocol
 from chat_protocol import SubmitMessage, UserWroteMessage, Packet, UserStatusWasUpdated, \
-  UserStatus, Login, LoginResponse
+  UserStatus, Login, LoginResponse, SubmitUserStatus
 from framed_protocol import PacketSender, PacketReceiver
 
 GENERIC_NAMES = ["Alice", "Bob", "Charlie"]
@@ -32,9 +32,10 @@ class ClientHandles:
       self._clients_by_id[client_id] = ClientHandle(False, None, sender)
       return client_id
 
-  def broadcast_to_logged_in(self, packet: Packet):
+  def broadcast_to_logged_in(self, packet: Packet, exclude_user: Optional[str] = None):
     with self._lock:
-      for sender in (handle.sender for handle in self._clients_by_id.values() if handle.logged_in):
+      for sender in (handle.sender for handle in self._clients_by_id.values()
+                     if handle.logged_in and handle.name != exclude_user):
         sender.send_packet(packet)
 
   def send_to_client(self, client_id, packet: Packet):
@@ -137,6 +138,9 @@ class Server:
         self._clients.mark_client_as_logged_in(client_id)
       else:
         self._clients.send_to_client(client_id, LoginResponse(False, "Name taken."))
+    elif isinstance(packet, SubmitUserStatus):
+      user_name = self._clients.get_client_name(client_id)
+      self._clients.broadcast_to_logged_in(UserStatusWasUpdated(user_name, packet.status), exclude_user=user_name)
 
   def _disconnect_client(self, client_id: int, client_socket):
     try:

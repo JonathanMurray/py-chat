@@ -12,13 +12,17 @@ class PacketType(Enum):
   PING = 1
   SUBMIT_MESSAGE = 2
   USER_WROTE_MESSAGE = 3
-  USER_STATUS_WAS_UPDATED = 4
-  LOGIN = 5
-  LOGIN_RESPONSE = 6
+  SUBMIT_USER_STATUS = 4
+  USER_STATUS_WAS_UPDATED = 5
+  LOGIN = 6
+  LOGIN_RESPONSE = 7
 
   def __bytes__(self) -> bytes:
     return u8_to_bytes(self.value)
 
+
+# TODO Separate between server and client packets (to increase type-safety and clarity around what messages need to be
+# handled where.
 
 class Ping(Packet):
   def __init__(self):
@@ -33,6 +37,8 @@ class Ping(Packet):
 
 
 class SubmitMessage(Packet):
+  """ Sent from a client to the server to submit a new chat message to the channel. """
+
   def __init__(self, message: str):
     if len(message) > 255:
       raise Exception("Payload must not be larger than 255 bytes!")
@@ -52,6 +58,8 @@ class SubmitMessage(Packet):
 
 
 class UserWroteMessage(Packet):
+  """ Broadcast from the server. Informs that a user sent a message. """
+
   def __init__(self, user_name: str, message: str):
     if len(message) > 255:
       raise Exception("Payload must not be larger than 255 bytes!")
@@ -78,12 +86,35 @@ class UserWroteMessage(Packet):
 class UserStatus(Enum):
   LOGGED_IN = 1
   LOGGED_OUT = 2
+  TYPING = 3
+  NOT_TYPING = 4
 
   def __bytes__(self) -> bytes:
     return u8_to_bytes(self.value)
 
 
+class SubmitUserStatus(Packet):
+  """ Sent from a client to the server to inform about a status update. """
+
+  def __init__(self, status: UserStatus):
+    super().__init__(PacketType.SUBMIT_USER_STATUS.value)
+    self.status = status
+
+  def __repr__(self):
+    return f"{super().__repr__()}({self.status})"
+
+  def encode_payload(self) -> bytes:
+    return bytes(self.status)
+
+  @staticmethod
+  def decode_payload(payload: bytearray) -> Optional[Packet]:
+    status = UserStatus(payload[0])
+    return SubmitUserStatus(status)
+
+
 class UserStatusWasUpdated(Packet):
+  """ Broadcast from the server. Informs that a user went through a status update. """
+
   def __init__(self, user_name: str, status: UserStatus):
     super().__init__(PacketType.USER_STATUS_WAS_UPDATED.value)
     self.user_name = user_name
@@ -104,6 +135,8 @@ class UserStatusWasUpdated(Packet):
 
 
 class Login(Packet):
+  """ Sent from a client to the server to register register itself and claim a user-name. """
+
   def __init__(self, user_name: Optional[str]):
     super().__init__(PacketType.LOGIN.value)
     self.user_name = user_name if user_name else ""
@@ -121,6 +154,8 @@ class Login(Packet):
 
 
 class LoginResponse(Packet):
+  """ Sent from the server as a response to a login-attempt from a client. """
+
   def __init__(self, success: bool, message: str):
     super().__init__(PacketType.LOGIN_RESPONSE.value)
     self.success = success
@@ -147,6 +182,7 @@ def parse_packet(opaque_packet: OpaquePacket) -> Optional[Packet]:
       PacketType.PING: Ping,
       PacketType.SUBMIT_MESSAGE: SubmitMessage,
       PacketType.USER_WROTE_MESSAGE: UserWroteMessage,
+      PacketType.SUBMIT_USER_STATUS: SubmitUserStatus,
       PacketType.USER_STATUS_WAS_UPDATED: UserStatusWasUpdated,
       PacketType.LOGIN: Login,
       PacketType.LOGIN_RESPONSE: LoginResponse
